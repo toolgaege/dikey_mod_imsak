@@ -415,20 +415,21 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           _buildEmptyTimesCard()
                         else
                           Expanded(
-                            child: ListView.builder(
+                            child: Padding(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 2),
-                              itemCount: prayerTimes.length,
-                              itemBuilder: (context, index) {
-                                final entry =
-                                    prayerTimes.entries.elementAt(index);
-                                final isCurrent = entry.key == currentPrayer;
-                                return _buildPrayerTimeCard(
-                                  entry.key,
-                                  entry.value,
-                                  isCurrent,
-                                );
-                              },
+                              child: Column(
+                                children: prayerTimes.entries.map((entry) {
+                                  final isCurrent = entry.key == currentPrayer;
+                                  return Expanded(
+                                    child: _buildPrayerTimeCard(
+                                      entry.key,
+                                      entry.value,
+                                      isCurrent,
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
                             ),
                           ),
                       ],
