@@ -1,0 +1,33 @@
+<svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+  <!-- Ana daire - açık mavi -->
+  <circle cx="24" cy="24" r="22" fill="#B3D9F2"/>
+  
+  <!-- Saat çerçevesi -->
+  <circle cx="24" cy="24" r="20" fill="none" stroke="#0A3A5C" stroke-width="1.5"/>
+  
+  <!-- Saat tırtıkları (12 adet) -->
+  <!-- Ana tırtıklar (12, 3, 6, 9 - daha uzun ve kalın) -->
+  <line x1="24" y1="6" x2="24" y2="9" stroke="#0A3A5C" stroke-width="2"/>
+  <line x1="42" y1="24" x2="39" y2="24" stroke="#0A3A5C" stroke-width="2"/>
+  <line x1="24" y1="42" x2="24" y2="39" stroke="#0A3A5C" stroke-width="2"/>
+  <line x1="6" y1="24" x2="9" y2="24" stroke="#0A3A5C" stroke-width="2"/>
+
+  <!-- Ara tırtıklar (1, 2, 4, 5, 7, 8, 10, 11 - daha kısa ve ince) -->
+  <line x1="34" y1="8.68" x2="32.5" y2="10.5" stroke="#0A3A5C" stroke-width="1"/>
+  <line x1="39.32" y1="14" x2="37.5" y2="15.5" stroke="#0A3A5C" stroke-width="1"/>
+  <line x1="39.32" y1="34" x2="37.5" y2="32.5" stroke="#0A3A5C" stroke-width="1"/>
+  <line x1="34" y1="39.32" x2="32.5" y2="37.5" stroke="#0A3A5C" stroke-width="1"/>
+  <line x1="14" y1="39.32" x2="15.5" y2="37.5" stroke="#0A3A5C" stroke-width="1"/>
+  <line x1="8.68" y1="34" x2="10.5" y2="32.5" stroke="#0A3A5C" stroke-width="1"/>
+  <line x1="8.68" y1="14" x2="10.5" y2="15.5" stroke="#0A3A5C" stroke-width="1"/>
+  <line x1="14" y1="8.68" x2="15.5" y2="10.5" stroke="#0A3A5C" stroke-width="1"/>
+  
+  <!-- Akrep - Saat 3'ü gösterir (sağa yatay) -->
+  <line x1="24" y1="24" x2="33" y2="24" stroke="#0A3A5C" stroke-width="2.5" stroke-linecap="round"/>
+  
+  <!-- Yelkovan - 12'yi gösterir (yukarı dikey) -->
+  <line x1="24" y1="24" x2="24" y2="10" stroke="#0A3A5C" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Merkez nokta -->
+  <circle cx="24" cy="24" r="1.5" fill="#0A3A5C"/>
+</svg>

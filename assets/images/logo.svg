@@ -1,0 +1,42 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="512" height="512" fill="#4A90E2"/>
+  
+  <!-- Mosque Icon -->
+  <g transform="translate(106, 80) scale(0.6)">
+    <!-- Central Dome -->
+    <path d="M250 50 C 320 50, 380 100, 400 170 L 100 170 C 120 100, 180 50, 250 50 Z" fill="white"/>
+    <!-- Crescent Moon on Dome -->
+    <path d="M250 20 C 240 20, 235 25, 235 35 C 235 45, 245 50, 250 50 C 255 50, 265 45, 265 35 C 265 25, 260 20, 250 20 Z" fill="white"/>
+    
+    <!-- Base Structure -->
+    <rect x="100" y="170" width="300" height="60" fill="white"/>
+    <!-- Windows/Arches on Base -->
+    <circle cx="150" cy="200" r="15" fill="#4A90E2"/>
+    <circle cx="200" cy="200" r="15" fill="#4A90E2"/>
+    <circle cx="250" cy="200" r="15" fill="#4A90E2"/>
+    <circle cx="300" cy="200" r="15" fill="#4A90E2"/>
+    <circle cx="350" cy="200" r="15" fill="#4A90E2"/>
+    
+    <!-- Lower Body -->
+    <rect x="80" y="230" width="340" height="100" fill="white"/>
+    <!-- Arches -->
+    <path d="M110 330 L 110 270 A 20 20 0 0 1 150 270 L 150 330 Z" fill="#4A90E2"/>
+    <path d="M180 330 L 180 270 A 20 20 0 0 1 220 270 L 220 330 Z" fill="#4A90E2"/>
+    <path d="M250 330 L 250 270 A 20 20 0 0 1 290 270 L 290 330 Z" fill="#4A90E2"/>
+    <path d="M320 330 L 320 270 A 20 20 0 0 1 360 270 L 360 330 Z" fill="#4A90E2"/>
+
+    <!-- Left Small Dome -->
+    <path d="M80 230 C 80 200, 110 180, 130 180 L 130 230 Z" fill="white"/>
+     <!-- Right Small Dome -->
+    <path d="M420 230 C 420 200, 390 180, 370 180 L 370 230 Z" fill="white"/>
+
+    <!-- Minaret -->
+    <rect x="430" y="100" width="20" height="230" fill="white"/>
+    <path d="M420 100 L 440 60 L 460 100 Z" fill="white"/> 
+  </g>
+
+  <!-- Text -->
+  <text x="256" y="380" font-family="Arial, sans-serif" font-weight="bold" font-size="64" fill="white" text-anchor="middle">Sultan</text>
+  <text x="256" y="450" font-family="Arial, sans-serif" font-weight="bold" font-size="64" fill="white" text-anchor="middle">Mescidi</text>
+</svg>
