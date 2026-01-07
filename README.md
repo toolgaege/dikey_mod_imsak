@@ -9,7 +9,7 @@
 - ✅ **Gradient Tasarım** - Koyu maviden açık maviye geçişler
 - ✅ **Modern UI** - Material Design 3
 - ✅ **Renkli Vakit Kartları** - Her vakit için özel renk
-- ✅ **Animasyonlu Bildirimler** - Bir sonraki vakit animasyonu
+- ⚠️ **Animasyonlu Bildirimler (planlanıyor)** - Bir sonraki vakit için animasyonlu bildirimler ileride eklenecek
 
 ### 🚀 Otomatik Başlatma
 - ✅ **Cihaz Açıldığında Otomatik Başlar** - BOOT_COMPLETED izni
@@ -270,5 +270,5 @@ Bu proje eğitim ve ibadet amaçlı geliştirilmiştir.
 **🎨 Orijinal koyu mavi tema ile!**  
 **📡 Canlı namaz vakitleri ile!**
 
-**Son Güncelleme:** 6 Ocak 2026  
+**Son Güncelleme:** 7 Ocak 2026  
 **Versiyon:** 1.0.0
