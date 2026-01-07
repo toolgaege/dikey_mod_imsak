@@ -17,9 +17,12 @@ Future<void> main() async {
   await initializeDateFormatting('tr_TR', null);
   Intl.defaultLocale = 'tr';
 
+  // Tüm yönlendirmelere izin ver (iPad tam ekran için)
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
+    // DeviceOrientation.landscapeLeft,
+    // DeviceOrientation.landscapeRight,
   ]);
 
   // Sistem UI ayarları - Koyu mavi tema
@@ -243,9 +246,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final hijriDate = _julianToHijri(julianDay);
 
     final hijriMonths = [
-      'Muharrem', 'Safer', 'Rebiülevvel', 'Rebiülahir',
-      'Cemaziyelevvel', 'Cemaziyelahir', 'Recep', 'Şaban',
-      'Ramazan', 'Şevval', 'Zilkade', 'Zilhicce'
+      'Muharrem',
+      'Safer',
+      'Rebiülevvel',
+      'Rebiülahir',
+      'Cemaziyelevvel',
+      'Cemaziyelahir',
+      'Recep',
+      'Şaban',
+      'Ramazan',
+      'Şevval',
+      'Zilkade',
+      'Zilhicce'
     ];
 
     return '${hijriDate['day']} ${hijriMonths[hijriDate['month']! - 1]} ${hijriDate['year']}';
@@ -256,15 +268,25 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final y = date.year + 4800 - a;
     final m = date.month + 12 * a - 3;
 
-    return date.day + (153 * m + 2) ~/ 5 + 365 * y + y ~/ 4 - y ~/ 100 + y ~/ 400 - 32045;
+    return date.day +
+        (153 * m + 2) ~/ 5 +
+        365 * y +
+        y ~/ 4 -
+        y ~/ 100 +
+        y ~/ 400 -
+        32045;
   }
 
   Map<String, int> _julianToHijri(int julianDay) {
     final l = julianDay - 1948440 + 10632;
     final n = (l - 1) ~/ 10631;
     final l2 = l - 10631 * n + 354;
-    final j = ((10985 - l2) ~/ 5316) * ((50 * l2) ~/ 17719) + (l2 ~/ 5670) * ((43 * l2) ~/ 15238);
-    final l3 = l2 - ((30 - j) ~/ 15) * ((17719 * j) ~/ 50) - (j ~/ 16) * ((15238 * j) ~/ 43) + 29;
+    final j = ((10985 - l2) ~/ 5316) * ((50 * l2) ~/ 17719) +
+        (l2 ~/ 5670) * ((43 * l2) ~/ 15238);
+    final l3 = l2 -
+        ((30 - j) ~/ 15) * ((17719 * j) ~/ 50) -
+        (j ~/ 16) * ((15238 * j) ~/ 43) +
+        29;
 
     final month = ((24 * l3) ~/ 709);
     final day = l3 - ((709 * month) ~/ 24);
@@ -361,42 +383,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // appBar: AppBar(
-      //   leadingWidth: 140, // Increased from 100 to ensure visibility
-      //   leading: Container(
-      //     padding: const EdgeInsets.symmetric(horizontal: 16),
-      //     alignment: Alignment.centerLeft,
-      //     child: Text(
-      //       '',
-      //       style: const TextStyle(
-      //         fontSize: 16,
-      //         fontWeight: FontWeight.bold,
-      //         color: AppColors.white,
-      //       ),
-      //       overflow: TextOverflow.ellipsis,
-      //     ),
-      //   ),
-      //   title: Text(
-      //     'Sultan Mescidi',
-      //     textAlign: TextAlign.center,
-      //     style: GoogleFonts.greatVibes(
-      //       fontSize: 36,
-      //       fontWeight: FontWeight.w500,
-      //       color: AppColors.white,
-      //     ),
-      //   ),
-      //   centerTitle: true,
-      //   actions: [
-      //     IconButton(
-      //       icon: const Icon(Icons.refresh, size: 22),
-      //       onPressed: () {
-      //         if (selectedPlace != null) {
-      //           _fetchPrayerTimes(selectedPlace!);
-      //         }
-      //       },
-      //     ),
-      //   ],
-      // ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -411,35 +397,41 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ),
         child: SafeArea(
           child: isLoading
-              ? Center(
+              ? const Center(
                   child: CircularProgressIndicator(
                     color: AppColors.primaryBlue,
                   ),
                 )
               : errorMessage != null
                   ? _buildErrorWidget()
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildCurrentTimeCard(),
-                          const SizedBox(height: 16),
-                          if (nextPrayer.isNotEmpty) _buildNextPrayerCard(),
-                          const SizedBox(height: 24),
-                          if (prayerTimes.isEmpty)
-                            _buildEmptyTimesCard()
-                          else
-                            ...prayerTimes.entries.map((entry) {
-                              final isCurrent = entry.key == currentPrayer;
-                              return _buildPrayerTimeCard(
-                                entry.key,
-                                entry.value,
-                                isCurrent,
-                              );
-                            }),
-                        ],
-                      ),
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildCurrentTimeCard(),
+                        const SizedBox(height: 6),
+                        if (nextPrayer.isNotEmpty) _buildNextPrayerCard(),
+                        const SizedBox(height: 6),
+                        if (prayerTimes.isEmpty)
+                          _buildEmptyTimesCard()
+                        else
+                          Expanded(
+                            child: ListView.builder(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
+                              itemCount: prayerTimes.length,
+                              itemBuilder: (context, index) {
+                                final entry =
+                                    prayerTimes.entries.elementAt(index);
+                                final isCurrent = entry.key == currentPrayer;
+                                return _buildPrayerTimeCard(
+                                  entry.key,
+                                  entry.value,
+                                  isCurrent,
+                                );
+                              },
+                            ),
+                          ),
+                      ],
                     ),
         ),
       ),
@@ -479,52 +471,51 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Widget _buildCurrentTimeCard() {
     return Container(
-      padding: const EdgeInsets.symmetric(
-          vertical: 16, horizontal: 20), // Reduced vertical padding 32->16
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 20),
       child: Column(
         children: [
           Text(
             'Sultan Mescidi',
             style: GoogleFonts.greatVibes(
-              fontSize: 48,
+              fontSize: 42,
               fontWeight: FontWeight.w500,
               color: AppColors.white,
             ),
           ),
-          const SizedBox(height: 0),
-          Text(
+          const SizedBox(height: 4),
+          const Text(
             'DENİZLİ',
-            style: const TextStyle(
-              fontSize: 28,
+            style: TextStyle(
+              fontSize: 24,
               fontWeight: FontWeight.bold,
               color: AppColors.white,
               letterSpacing: 4,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           Text(
             currentTime,
             style: const TextStyle(
-              fontSize: 80,
+              fontSize: 68,
               fontWeight: FontWeight.bold,
               color: AppColors.white,
               letterSpacing: 2,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             hijriDate,
-            style: TextStyle(
-              fontSize: 24,
+            style: const TextStyle(
+              fontSize: 22,
               color: AppColors.white,
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             currentDate,
             style: const TextStyle(
-              fontSize: 26,
+              fontSize: 23,
               color: AppColors.white,
               fontWeight: FontWeight.bold,
             ),
@@ -537,8 +528,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Widget _buildNextPrayerCard() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.symmetric(
-          vertical: 12, horizontal: 24), // Reduced vertical padding 20->12
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
       decoration: BoxDecoration(
         color: AppColors.primaryDarkBlue,
         borderRadius: BorderRadius.circular(8),
@@ -548,16 +538,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           Text(
             'Sonraki Vakit: $nextPrayer',
             style: const TextStyle(
-              fontSize: 28,
+              fontSize: 26,
               fontWeight: FontWeight.bold,
               color: AppColors.white,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             'Kalan Süre: $timeToNextPrayer',
-            style: TextStyle(
-              fontSize: 28,
+            style: const TextStyle(
+              fontSize: 26,
               color: AppColors.white,
               fontWeight: FontWeight.bold,
             ),
@@ -594,13 +584,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildPrayerTimeCard(String name, String time, bool isNext) {
-    // Info removed as it was unused
-
     return Container(
-      margin: const EdgeInsets.symmetric(
-          horizontal: 16, vertical: 2), // Reduced vertical margin 4->2
-      padding: const EdgeInsets.symmetric(
-          horizontal: 20, vertical: 12), // Reduced vertical padding 20->12
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       decoration: BoxDecoration(
         color: isNext ? AppColors.nextPrayerGreen : AppColors.cardBackground,
         borderRadius: BorderRadius.circular(8),
@@ -609,9 +595,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         children: [
           // Saat ikonu
           Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(
               color: AppColors.clockIconBg,
               shape: BoxShape.circle,
             ),
@@ -621,13 +607,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               // colorFilter removed to show original SVG colors
             ),
           ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 18),
           // Vakit adı
           Expanded(
             child: Text(
               name,
               style: const TextStyle(
-                fontSize: 32, // Increased 28->32
+                fontSize: 30,
                 fontWeight: FontWeight.w900,
                 color: AppColors.white,
               ),
@@ -637,7 +623,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           Text(
             time,
             style: const TextStyle(
-              fontSize: 36, // Increased 32->36
+              fontSize: 34,
               fontWeight: FontWeight.bold,
               color: AppColors.white,
               letterSpacing: 1,
