@@ -76,15 +76,36 @@ class VakitApiService {
       final url = Uri.parse(
         '$baseUrl/timesForGPS?lat=$lat&lng=$lng&date=$dateParam&days=$days&timezoneOffset=$timezoneOffset&calculationMethod=$calculationMethod&lang=$lang',
       );
+
+      print('🕌 API İsteği Gönderiliyor...');
+      print('📍 URL: $url');
+      print('📅 Tarih: $dateParam');
+
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
+        print('✅ API Yanıtı Başarılı (200)');
+        print('📦 Ham Veri: ${response.body}');
+
         final data = json.decode(response.body);
-        return PrayerTimesResponse.fromJson(data);
+        final result = PrayerTimesResponse.fromJson(data);
+
+        if (result.times.isNotEmpty) {
+          final todayTimes = result.times.first;
+          print('🕐 Fecr: ${todayTimes.fajr}');
+          print('☀️ Güneş: ${todayTimes.sunrise}');
+          print('🕐 Öğle: ${todayTimes.dhuhr}');
+          print('🕐 İkindi: ${todayTimes.asr}');
+          print('🌙 Akşam: ${todayTimes.maghrib}');
+          print('⭐ Yatsı: ${todayTimes.isha}');
+        }
+
+        return result;
       } else {
         throw Exception('Vakitler yüklenemedi: ${response.statusCode}');
       }
     } catch (e) {
+      print('❌ API Hatası: $e');
       throw Exception('Vakit yükleme hatası: $e');
     }
   }
@@ -163,6 +184,56 @@ class VakitApiService {
       }
     } catch (e) {
       throw Exception('Şehir listesi hatası: $e');
+    }
+  }
+
+  /// Yıllık vakitleri çek (365 gün)
+  Future<PrayerTimesResponse> getYearlyTimes({
+    required double lat,
+    required double lng,
+    int? year,
+    int timezoneOffset = 180,
+    String calculationMethod = 'Turkey',
+    String lang = 'tr',
+  }) async {
+    try {
+      final targetYear = year ?? DateTime.now().year;
+      final startDate = '$targetYear-01-01';
+
+      print('');
+      print('📅 ═══════════════════════════════════════════');
+      print('📅 YILLIK VERİLER ÇEKİLİYOR...');
+      print('📅 Yıl: $targetYear');
+      print('📅 Başlangıç: $startDate');
+      print('📅 ═══════════════════════════════════════════');
+
+      final url = Uri.parse(
+        '$baseUrl/timesForGPS?lat=$lat&lng=$lng&date=$startDate&days=365&timezoneOffset=$timezoneOffset&calculationMethod=$calculationMethod&lang=$lang',
+      );
+
+      print('🕌 API İsteği Gönderiliyor...');
+      print('📍 URL: $url');
+
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        print('✅ API Yanıtı Başarılı (200)');
+        print('📦 Veri boyutu: ${response.body.length} byte');
+
+        final data = json.decode(response.body);
+        final result = PrayerTimesResponse.fromJson(data);
+
+        print('✅ ${result.times.length} günlük veri başarıyla çekildi!');
+        print('📅 ═══════════════════════════════════════════');
+        print('');
+
+        return result;
+      } else {
+        throw Exception('Yıllık vakitler yüklenemedi: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Yıllık veri çekme hatası: $e');
+      throw Exception('Yıllık vakit yükleme hatası: $e');
     }
   }
 

@@ -97,6 +97,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   late AnimationController _animationController;
   late Timer _timer;
+  Timer? _dailyUpdateTimer;
+  String _lastUpdateDate = '';
 
   String currentTime = '';
   String currentDate = '';
@@ -136,6 +138,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         _updateTime();
         _timer =
             Timer.periodic(const Duration(seconds: 1), (_) => _updateTime());
+
+        // Her 5 dakikada bir yeni gün kontrolü yap
+        _dailyUpdateTimer = Timer.periodic(
+          const Duration(minutes: 5),
+          (_) => _checkAndUpdateIfNewDay(),
+        );
       }
     });
 
@@ -146,6 +154,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   void dispose() {
     _animationController.dispose();
     _timer.cancel();
+    _dailyUpdateTimer?.cancel();
     super.dispose();
   }
 
@@ -156,15 +165,44 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
 
     try {
-      final cachedTimes = await _storageService.loadCachedPrayerTimes();
-      if (cachedTimes != null) {
-        setState(() {
-          prayerTimes = cachedTimes;
-        });
-      }
+      print('');
+      print('🚀 ═══════════════════════════════════════════');
+      print('🚀 UYGULAMA BAŞLATILIYOR...');
+      print('🚀 ═══════════════════════════════════════════');
+
+      final now = DateTime.now();
+      final todayDate = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
       // Always force Denizli
       await _searchAndSelectPlace('Denizli');
+
+      if (selectedPlace != null) {
+        // Önce veritabanından dene
+        final dbTimes = await _storageService.getPrayerTimesFromDB(
+          todayDate,
+          selectedPlace!.id,
+        );
+
+        if (dbTimes != null) {
+          print('✅ Veritabanından bugünün vakitleri yüklendi (OFFLINE mod)');
+          _lastUpdateDate = todayDate;
+          setState(() {
+            prayerTimes = dbTimes;
+          });
+        } else {
+          print('⚠️ Veritabanında bugün için veri yok');
+          _lastUpdateDate = '';
+        }
+
+        // Yıllık verileri kontrol et ve gerekirse çek
+        await _checkAndSyncYearlyData();
+
+        // Eski yılların verilerini temizle
+        await _storageService.cleanOldYearData();
+
+        // DB istatistiklerini göster
+        await _storageService.printDBStats();
+      }
     } catch (e) {
       setState(() {
         errorMessage = 'Veri yükleme hatası: $e';
@@ -173,6 +211,64 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       setState(() {
         isLoading = false;
       });
+    }
+  }
+
+  /// Yıllık verileri kontrol et ve gerekirse API'den çek
+  Future<void> _checkAndSyncYearlyData() async {
+    if (selectedPlace == null) return;
+
+    try {
+      final currentYear = DateTime.now().year;
+      final hasData = await _storageService.hasYearDataInDB(
+        currentYear,
+        selectedPlace!.id,
+      );
+
+      if (!hasData) {
+        print('');
+        print('⚠️ $currentYear yılı için veritabanında yeterli veri yok!');
+        print('📡 İnternetten yıllık veriler çekiliyor...');
+
+        // Yıllık verileri API'den çek
+        final response = await _apiService.getYearlyTimes(
+          lat: selectedPlace!.latitude,
+          lng: selectedPlace!.longitude,
+          year: currentYear,
+        );
+
+        // Veritabanına kaydet
+        final saved = await _storageService.saveYearlyPrayerTimes(
+          response,
+          selectedPlace!,
+          currentYear,
+        );
+
+        if (saved) {
+          print('✅ Yıllık veriler başarıyla kaydedildi!');
+          print('🎉 Artık internet olmadan çalışabilir!');
+
+          // Bugünün vakitlerini tekrar yükle
+          final now = DateTime.now();
+          final todayDate = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+          final dbTimes = await _storageService.getPrayerTimesFromDB(
+            todayDate,
+            selectedPlace!.id,
+          );
+
+          if (dbTimes != null) {
+            _lastUpdateDate = todayDate;
+            setState(() {
+              prayerTimes = dbTimes;
+            });
+          }
+        }
+      } else {
+        print('✅ $currentYear yılı için veritabanında veri mevcut');
+      }
+    } catch (e) {
+      print('❌ Yıllık veri senkronizasyon hatası: $e');
+      print('⚠️ Offline modda çalışılamayabilir');
     }
   }
 
@@ -198,20 +294,53 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
 
     try {
-      final response = await _apiService.getTimesForGPS(
-        lat: place.latitude,
-        lng: place.longitude,
-        days: 1,
+      final now = DateTime.now();
+      final todayDate = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      print('');
+      print('═══════════════════════════════════════════');
+      print('🔄 Namaz Vakitleri Güncelleniyor...');
+      print('📅 Bugünün Tarihi: $todayDate');
+      print('📍 Konum: ${place.city}');
+      print('═══════════════════════════════════════════');
+
+      // Önce veritabanından dene (offline mod)
+      final dbTimes = await _storageService.getPrayerTimesFromDB(
+        todayDate,
+        place.id,
       );
 
-      if (response.times.isNotEmpty) {
-        final todayTimes = response.times.first.toTurkishMap();
+      if (dbTimes != null) {
+        print('✅ Veritabanından vakitler yüklendi (OFFLINE)');
         setState(() {
-          prayerTimes = todayTimes;
+          prayerTimes = dbTimes;
+          _lastUpdateDate = todayDate;
           _calculateNextPrayer();
         });
+      } else {
+        print('⚠️ Veritabanında veri yok, API\'den çekiliyor...');
 
-        await _storageService.cachePrayerTimes(todayTimes);
+        final response = await _apiService.getTimesForGPS(
+          lat: place.latitude,
+          lng: place.longitude,
+          days: 1,
+        );
+
+        if (response.times.isNotEmpty) {
+          final todayTimes = response.times.first.toTurkishMap();
+          setState(() {
+            prayerTimes = todayTimes;
+            _lastUpdateDate = todayDate;
+            _calculateNextPrayer();
+          });
+
+          await _storageService.cachePrayerTimes(todayTimes);
+
+          print('');
+          print('✅ Vakitler Başarıyla Güncellendi!');
+          print('═══════════════════════════════════════════');
+          print('');
+        }
       }
     } catch (e) {
       if (prayerTimes.isEmpty) {
@@ -225,6 +354,56 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       setState(() {
         isLoading = false;
       });
+    }
+  }
+
+  /// Yeni gün başladıysa vakitleri güncelle ve yıl değişimi kontrol et
+  Future<void> _checkAndUpdateIfNewDay() async {
+    final now = DateTime.now();
+    final todayDate = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+    print('');
+    print('🔍 ═══════════════════════════════════════════');
+    print('🔍 GÜNLÜK KONTROL YAPILIYOR...');
+    print('🔍 Saat: ${now.hour}:${now.minute.toString().padLeft(2, '0')}');
+    print('📅 Son Güncelleme: ${_lastUpdateDate.isEmpty ? "BOŞ (henüz güncellenmedi)" : _lastUpdateDate}');
+    print('📅 Bugünün Tarihi: $todayDate');
+    print('🔍 ═══════════════════════════════════════════');
+
+    if (_lastUpdateDate != todayDate && selectedPlace != null) {
+      print('');
+      print('🌅 ═══════════════════════════════════════════');
+      print('🌅 YENİ GÜN TESPİT EDİLDİ!');
+      print('🌅 ═══════════════════════════════════════════');
+      print('⏰ Son Güncelleme: ${_lastUpdateDate.isEmpty ? "Hiç güncellenmedi" : _lastUpdateDate}');
+      print('📅 Bugün: $todayDate');
+      print('🔄 Vakitler otomatik güncelleniyor...');
+      print('');
+
+      // Yıl değişimi kontrolü
+      if (_lastUpdateDate.isNotEmpty) {
+        final lastYear = int.parse(_lastUpdateDate.split('-')[0]);
+        final currentYear = now.year;
+
+        if (lastYear != currentYear) {
+          print('');
+          print('🎊 ═══════════════════════════════════════════');
+          print('🎊 YENİ YIL TESPİT EDİLDİ!');
+          print('🎊 Eski Yıl: $lastYear → Yeni Yıl: $currentYear');
+          print('🎊 ═══════════════════════════════════════════');
+          print('📡 $currentYear yılının verileri çekiliyor...');
+
+          await _checkAndSyncYearlyData();
+        }
+      }
+
+      await _fetchPrayerTimes(selectedPlace!);
+    } else if (_lastUpdateDate == todayDate) {
+      print('✅ Vakitler güncel, güncellemeye gerek yok.');
+      print('');
+    } else if (selectedPlace == null) {
+      print('⚠️ Konum bilgisi yok, güncelleme yapılamıyor.');
+      print('');
     }
   }
 
@@ -380,6 +559,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
+  // Ekran yüksekliğine göre font scale faktörü hesapla
+  double _getFontScaleFactor(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    // 800 referans yükseklik, bundan küçük olursa fontlar küçülsün
+    const referenceHeight = 800.0;
+    final scale = screenHeight / referenceHeight;
+    // Minimum 0.6, maksimum 1.2 arasında tut
+    return scale.clamp(0.6, 1.2);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -416,19 +605,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         else
                           Expanded(
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.only(
+                                left: 8,
+                                right: 8,
+                                top: 2,
+                                bottom: 8,
+                              ),
                               child: Column(
-                                children: prayerTimes.entries.map((entry) {
-                                  final isCurrent = entry.key == currentPrayer;
-                                  return Expanded(
-                                    child: _buildPrayerTimeCard(
-                                      entry.key,
-                                      entry.value,
-                                      isCurrent,
-                                    ),
-                                  );
-                                }).toList(),
+                                children: [
+                                  ...prayerTimes.entries.map((entry) {
+                                    final isCurrent = entry.key == currentPrayer;
+                                    return Expanded(
+                                      child: _buildPrayerTimeCard(
+                                        entry.key,
+                                        entry.value,
+                                        isCurrent,
+                                      ),
+                                    );
+                                  }).toList(),
+                                  const SizedBox(height: 8),
+                                ],
                               ),
                             ),
                           ),
@@ -471,6 +667,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildCurrentTimeCard() {
+    final scaleFactor = _getFontScaleFactor(context);
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 20),
       child: Column(
@@ -478,16 +676,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           Text(
             'Sultan Mescidi',
             style: GoogleFonts.greatVibes(
-              fontSize: 42,
+              fontSize: 42 * scaleFactor,
               fontWeight: FontWeight.w500,
               color: AppColors.white,
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'DENİZLİ',
             style: TextStyle(
-              fontSize: 24,
+              fontSize: 24 * scaleFactor,
               fontWeight: FontWeight.bold,
               color: AppColors.white,
               letterSpacing: 4,
@@ -496,8 +694,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           const SizedBox(height: 8),
           Text(
             currentTime,
-            style: const TextStyle(
-              fontSize: 68,
+            style: TextStyle(
+              fontSize: 68 * scaleFactor,
               fontWeight: FontWeight.bold,
               color: AppColors.white,
               letterSpacing: 2,
@@ -506,8 +704,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           const SizedBox(height: 4),
           Text(
             hijriDate,
-            style: const TextStyle(
-              fontSize: 22,
+            style: TextStyle(
+              fontSize: 22 * scaleFactor,
               color: AppColors.white,
               fontWeight: FontWeight.bold,
             ),
@@ -515,8 +713,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           const SizedBox(height: 2),
           Text(
             currentDate,
-            style: const TextStyle(
-              fontSize: 23,
+            style: TextStyle(
+              fontSize: 23 * scaleFactor,
               color: AppColors.white,
               fontWeight: FontWeight.bold,
             ),
@@ -527,6 +725,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildNextPrayerCard() {
+    final scaleFactor = _getFontScaleFactor(context);
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
@@ -538,8 +738,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         children: [
           Text(
             'Sonraki Vakit: $nextPrayer',
-            style: const TextStyle(
-              fontSize: 26,
+            style: TextStyle(
+              fontSize: 26 * scaleFactor,
               fontWeight: FontWeight.bold,
               color: AppColors.white,
             ),
@@ -547,8 +747,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           const SizedBox(height: 4),
           Text(
             'Kalan Süre: $timeToNextPrayer',
-            style: const TextStyle(
-              fontSize: 26,
+            style: TextStyle(
+              fontSize: 26 * scaleFactor,
               color: AppColors.white,
               fontWeight: FontWeight.bold,
             ),
@@ -585,6 +785,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildPrayerTimeCard(String name, String time, bool isNext) {
+    final scaleFactor = _getFontScaleFactor(context);
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -596,8 +798,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         children: [
           // Saat ikonu
           Container(
-            width: 44,
-            height: 44,
+            width: 44 * scaleFactor,
+            height: 44 * scaleFactor,
             decoration: const BoxDecoration(
               color: AppColors.clockIconBg,
               shape: BoxShape.circle,
@@ -613,8 +815,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           Expanded(
             child: Text(
               name,
-              style: const TextStyle(
-                fontSize: 30,
+              style: TextStyle(
+                fontSize: 30 * scaleFactor,
                 fontWeight: FontWeight.w900,
                 color: AppColors.white,
               ),
@@ -623,8 +825,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           // Vakit saati
           Text(
             time,
-            style: const TextStyle(
-              fontSize: 34,
+            style: TextStyle(
+              fontSize: 34 * scaleFactor,
               fontWeight: FontWeight.bold,
               color: AppColors.white,
               letterSpacing: 1,
