@@ -3,17 +3,16 @@ import 'package:flutter/material.dart';
 class AppColors {
   // Ana renkler - Orijinal APK'dan
   static const Color primaryDarkBlue =
-      Color(0xFF002F61); // Koyu lacivert (arka plan üst) -> İstenen: #002f61
+      Color(0xFF0000AA); // Distinct blue from original TV mod
   static const Color secondaryDarkBlue =
-      Color(0xFF002F61); // Koyu lacivert (arka plan alt)
+      Color(0xFF0000AA); // Koyu lacivert (arka plan alt)
   static const Color accentBlue = Color(0xFF062C47); // Vurgu mavisi
 
   // Gradient renkler - Arka plan
-  static const Color gradientStart = Color(0xFF002F61); // #002f61
-  static const Color gradientMid = Color(
-      0xFF002F61); // Düz renk isteniyor gibi, gradyanı hafifletebiliriz veya aynı yapabiliriz
+  static const Color gradientStart = Color(0xFF0000AA);
+  static const Color gradientMid = Color(0xFF0000AA);
   static const Color gradientEnd =
-      Color(0xFF001A33); // Hafif koyu bitiş (isteğe bağlı)
+      Color(0xFF000088); // Slightly darker for subtle gradient
 
   // Bir sonraki vakit için koyu yeşil
   static const Color nextPrayerGreen = Color(0xFF005901); // İstenen: #005901
@@ -42,9 +41,8 @@ class AppColors {
   static const Color weatherText = Color(0xFFB3D9F2);
 
   // Arka plan renkleri
-  static const Color backgroundDark = Color(0xFF002F61);
-  static const Color cardBackground =
-      Color(0xFF002F61); // Kartlar da aynı renk (transparan gibi duracak)
+  static const Color backgroundDark = Color(0xFF0000AA);
+  static const Color cardBackground = Color(0xFF0000AA);
 
   // Yardımcı
   static const Color success = Color(0xFF2D5F2E);

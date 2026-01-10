@@ -11,6 +11,7 @@ class StorageService {
   static const String _keyCachedTimes = 'cached_times';
   static const String _keyCacheDate = 'cache_date';
   static const String _keyLastYearSync = 'last_year_sync';
+  static const String _keyDefaultPage = 'default_page';
 
   final DatabaseService _dbService = DatabaseService();
 
@@ -54,8 +55,10 @@ class StorageService {
         final cached = DateTime.parse(cacheDate);
         final now = DateTime.now();
 
-        print('📂 Cache tarihi: ${cached.year}-${cached.month.toString().padLeft(2, '0')}-${cached.day.toString().padLeft(2, '0')}');
-        print('📅 Bugünün tarihi: ${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}');
+        print(
+            '📂 Cache tarihi: ${cached.year}-${cached.month.toString().padLeft(2, '0')}-${cached.day.toString().padLeft(2, '0')}');
+        print(
+            '📅 Bugünün tarihi: ${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}');
 
         // Önbellek bugüne aitse kullan
         if (cached.year == now.year &&
@@ -92,12 +95,14 @@ class StorageService {
   ) async {
     // Web platformunda veritabanı çalışmaz
     if (kIsWeb) {
-      print('⚠️ Web platformunda veritabanı desteklenmez, sadece SharedPreferences kullanılıyor');
+      print(
+          '⚠️ Web platformunda veritabanı desteklenmez, sadece SharedPreferences kullanılıyor');
       return false;
     }
 
     try {
-      final placeName = place.city.isNotEmpty ? place.city : place.getShortName();
+      final placeName =
+          place.city.isNotEmpty ? place.city : place.getShortName();
 
       print('');
       print('💾 ═══════════════════════════════════════════');
@@ -224,5 +229,17 @@ class StorageService {
     if (!kIsWeb) {
       await _dbService.clearAllData();
     }
+  }
+
+  /// Varsayılan sayfayı kaydet
+  Future<void> saveDefaultPage(String pageName) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyDefaultPage, pageName);
+  }
+
+  /// Varsayılan sayfayı al
+  Future<String> getDefaultPage() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyDefaultPage) ?? 'home';
   }
 }

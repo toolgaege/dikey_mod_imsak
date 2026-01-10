@@ -239,13 +239,14 @@ android/app/src/main/kotlin/
 
 ## 🔄 Güncellemeler
 
-### Versiyon 1.0.0 (Mevcut)
-- ✅ Koyu mavi tema (Orijinal APK'dan)
-- ✅ Otomatik başlatma özelliği
-- ✅ Canlı API entegrasyonu
-- ✅ GPS konum desteği
-- ✅ Şehir arama
-- ✅ Önbellekleme
+### Versiyon 1.1.0 (Mevcut)
+- ✅ **Dikey Saat Modu** - Tam sayfa profesyonel dikey saat tasarımı.
+- ✅ **Premium Analog Saat** - 3D metalik bezel, iç gölge ve cam yansıması efektli tasarım.
+- ✅ **Gelişmiş Tarih Gösterimi** - Hicri, Miladi ve Rumi tarihler bir arada.
+- ✅ **Yeni Yan Menü** - Kenardan kenara "Sultan Mescidi" başlığı ve kategorize edilmiş ayarlar.
+- ✅ **Açılış Sayfası Seçimi** - Uygulamanın Namaz Vakitleri veya Dikey Saat ile başlatılabilmesi.
+- ✅ **Gizli Navigasyon** - Android'de menü butonu gizlendi, sadece kaydırma (swipe) ile açılır.
+- ✅ **Gelişmiş Yükleme Ekranı** - Modern cam efekti ve ikonlu loading tasarımı.
 
 ### Gelecek Güncellemeler
 - [ ] Bildirim sistemi
@@ -268,7 +269,7 @@ Bu proje eğitim ve ibadet amaçlı geliştirilmiştir.
 
 **📱 Cihaz açıldığında otomatik olarak başlar!**  
 **🎨 Orijinal koyu mavi tema ile!**  
-**📡 Canlı namaz vakitleri ile!**
+**� Premium Dikey Saat ve Namaz Vakitleri!**
 
-**Son Güncelleme:** 7 Ocak 2026  
-**Versiyon:** 1.0.0
+**Son Güncelleme:** 10 Ocak 2026  
+**Versiyon:** 1.1.0
