@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:audioplayers/audioplayers.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:async';
 import 'package:intl/intl.dart';
@@ -107,6 +107,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String currentPrayer = '';
   String timeToNextPrayer = '';
 
+  // Test modu için
+  bool _isTestMode = false;
+  Duration _timeOffset = Duration.zero;
+  DateTime get _now => _isTestMode ? DateTime.now().add(_timeOffset) : DateTime.now();
+
   PlaceModel? selectedPlace;
   Map<String, String> prayerTimes = {};
   bool isLoading = false;
@@ -139,9 +144,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         _timer =
             Timer.periodic(const Duration(seconds: 1), (_) => _updateTime());
 
-        // Her 5 dakikada bir yeni gün kontrolü yap
+        // Her 1 saatte bir yeni gün kontrolü yap
         _dailyUpdateTimer = Timer.periodic(
-          const Duration(minutes: 5),
+          const Duration(hours: 1),
           (_) => _checkAndUpdateIfNewDay(),
         );
       }
@@ -170,38 +175,52 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       print('🚀 UYGULAMA BAŞLATILIYOR...');
       print('🚀 ═══════════════════════════════════════════');
 
-      final now = DateTime.now();
+      final now = _now;
       final todayDate = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-      // Always force Denizli
-      await _searchAndSelectPlace('Denizli');
+      // Önce kayıtlı yeri yükle (offline mod için)
+      selectedPlace = await _storageService.loadSelectedPlace();
+
+      // Kayıtlı yer yoksa Denizli'yi ara (internet gerekir)
+      if (selectedPlace == null) {
+        print('⚠️ Kayıtlı yer yok, Denizli aranıyor...');
+        await _searchAndSelectPlace('Denizli');
+      } else {
+        print('✅ Kayıtlı yer yüklendi: ${selectedPlace!.city}');
+      }
 
       if (selectedPlace != null) {
-        // Önce veritabanından dene
-        final dbTimes = await _storageService.getPrayerTimesFromDB(
-          todayDate,
-          selectedPlace!.id,
-        );
-
-        if (dbTimes != null) {
-          print('✅ Veritabanından bugünün vakitleri yüklendi (OFFLINE mod)');
-          _lastUpdateDate = todayDate;
-          setState(() {
-            prayerTimes = dbTimes;
-          });
+        if (kIsWeb) {
+          // Web platformunda veritabanı yok, her zaman API'den çek
+          print('🌐 Web platformu - API\'den vakitler çekiliyor...');
+          await _fetchPrayerTimes(selectedPlace!);
         } else {
-          print('⚠️ Veritabanında bugün için veri yok');
-          _lastUpdateDate = '';
+          // Mobil/Desktop: Önce veritabanından dene
+          final dbTimes = await _storageService.getPrayerTimesFromDB(
+            todayDate,
+            selectedPlace!.id,
+          );
+
+          if (dbTimes != null) {
+            print('✅ Veritabanından bugünün vakitleri yüklendi (OFFLINE mod)');
+            _lastUpdateDate = todayDate;
+            setState(() {
+              prayerTimes = dbTimes;
+            });
+          } else {
+            print('⚠️ Veritabanında bugün için veri yok');
+            _lastUpdateDate = '';
+          }
+
+          // Yıllık verileri kontrol et ve gerekirse çek
+          await _checkAndSyncYearlyData();
+
+          // Eski yılların verilerini temizle
+          await _storageService.cleanOldYearData();
+
+          // DB istatistiklerini göster
+          await _storageService.printDBStats();
         }
-
-        // Yıllık verileri kontrol et ve gerekirse çek
-        await _checkAndSyncYearlyData();
-
-        // Eski yılların verilerini temizle
-        await _storageService.cleanOldYearData();
-
-        // DB istatistiklerini göster
-        await _storageService.printDBStats();
       }
     } catch (e) {
       setState(() {
@@ -219,7 +238,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (selectedPlace == null) return;
 
     try {
-      final currentYear = DateTime.now().year;
+      final currentYear = _now.year;
       final hasData = await _storageService.hasYearDataInDB(
         currentYear,
         selectedPlace!.id,
@@ -249,7 +268,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           print('🎉 Artık internet olmadan çalışabilir!');
 
           // Bugünün vakitlerini tekrar yükle
-          final now = DateTime.now();
+          final now = _now;
           final todayDate = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
           final dbTimes = await _storageService.getPrayerTimesFromDB(
             todayDate,
@@ -281,9 +300,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         await _fetchPrayerTimes(selectedPlace!);
       }
     } catch (e) {
-      setState(() {
-        errorMessage = 'Yer arama hatası: $e';
-      });
+      // İnternet yoksa varsayılan Denizli bilgisini kullan
+      print('⚠️ API\'ye ulaşılamadı, varsayılan Denizli bilgisi kullanılıyor');
+      selectedPlace = PlaceModel(
+        id: '20392',
+        country: 'Turkey',
+        region: 'Denizli',
+        city: 'Denizli',
+        latitude: 37.77,
+        longitude: 29.09,
+      );
+      await _storageService.saveSelectedPlace(selectedPlace!);
+      print('✅ Varsayılan Denizli konumu ayarlandı (Offline mod)');
     }
   }
 
@@ -294,7 +322,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
 
     try {
-      final now = DateTime.now();
+      final now = _now;
       final todayDate = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
       print('');
@@ -324,6 +352,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           lat: place.latitude,
           lng: place.longitude,
           days: 1,
+          date: todayDate,
         );
 
         if (response.times.isNotEmpty) {
@@ -361,13 +390,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Future<void> _checkAndUpdateIfNewDay() async {
     final now = DateTime.now();
     final todayDate = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final currentTime = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
 
     print('');
     print('🔍 ═══════════════════════════════════════════');
-    print('🔍 GÜNLÜK KONTROL YAPILIYOR...');
-    print('🔍 Saat: ${now.hour}:${now.minute.toString().padLeft(2, '0')}');
-    print('📅 Son Güncelleme: ${_lastUpdateDate.isEmpty ? "BOŞ (henüz güncellenmedi)" : _lastUpdateDate}');
-    print('📅 Bugünün Tarihi: $todayDate');
+    print('🔍 OTOMATİK TARİH KONTROLÜ YAPILIYOR...');
+    print('🔍 ═══════════════════════════════════════════');
+    print('🕐 Mevcut Tarih ve Saat: $todayDate $currentTime');
+    print('📅 Son Güncelleme Tarihi: ${_lastUpdateDate.isEmpty ? "BOŞ (henüz güncellenmedi)" : _lastUpdateDate}');
     print('🔍 ═══════════════════════════════════════════');
 
     if (_lastUpdateDate != todayDate && selectedPlace != null) {
@@ -375,9 +405,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       print('🌅 ═══════════════════════════════════════════');
       print('🌅 YENİ GÜN TESPİT EDİLDİ!');
       print('🌅 ═══════════════════════════════════════════');
-      print('⏰ Son Güncelleme: ${_lastUpdateDate.isEmpty ? "Hiç güncellenmedi" : _lastUpdateDate}');
-      print('📅 Bugün: $todayDate');
-      print('🔄 Vakitler otomatik güncelleniyor...');
+      print('📆 Eski Tarih: ${_lastUpdateDate.isEmpty ? "Yok (ilk çalıştırma)" : _lastUpdateDate}');
+      print('📅 Yeni Tarih: $todayDate');
+      print('🕐 Kontrol Zamanı: $currentTime');
+      print('🔄 Namaz vakitleri otomatik güncelleniyor...');
+      print('🌅 ═══════════════════════════════════════════');
       print('');
 
       // Yıl değişimi kontrolü
@@ -399,10 +431,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
       await _fetchPrayerTimes(selectedPlace!);
     } else if (_lastUpdateDate == todayDate) {
-      print('✅ Vakitler güncel, güncellemeye gerek yok.');
+      print('');
+      print('✅ ═══════════════════════════════════════════');
+      print('✅ KONTROL SONUCU: Vakitler güncel!');
+      print('✅ ═══════════════════════════════════════════');
+      print('📌 Bugünün vakitleri zaten yüklü: $todayDate');
+      print('⏭️  Sonraki kontrol: 1 saat sonra');
+      print('✅ ═══════════════════════════════════════════');
       print('');
     } else if (selectedPlace == null) {
-      print('⚠️ Konum bilgisi yok, güncelleme yapılamıyor.');
+      print('');
+      print('⚠️ ═══════════════════════════════════════════');
+      print('⚠️ UYARI: Konum bilgisi bulunamadı!');
+      print('⚠️ ═══════════════════════════════════════════');
       print('');
     }
   }
@@ -559,19 +600,39 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
-  // Ekran yüksekliğine göre font scale faktörü hesapla
+  // Ekran boyutuna göre font scale faktörü hesapla
   double _getFontScaleFactor(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    // 800 referans yükseklik, bundan küçük olursa fontlar küçülsün
-    const referenceHeight = 800.0;
-    final scale = screenHeight / referenceHeight;
-    // Minimum 0.6, maksimum 1.2 arasında tut
-    return scale.clamp(0.6, 1.2);
+    final size = MediaQuery.of(context).size;
+    final screenWidth = size.width;
+    final screenHeight = size.height;
+
+    // Mobil cihaz kontrolü (genişlik < 600px)
+    if (screenWidth < 600) {
+      // Mobil: Daha küçük fontlar
+      const referenceHeight = 800.0;
+      final scale = screenHeight / referenceHeight;
+      // Mobilde minimum 0.5, maksimum 0.85
+      return scale.clamp(0.5, 0.85);
+    } else if (screenWidth < 1024) {
+      // Tablet: Orta boyut fontlar
+      const referenceHeight = 800.0;
+      final scale = screenHeight / referenceHeight;
+      // Tablette minimum 0.7, maksimum 1.0
+      return scale.clamp(0.7, 1.0);
+    } else {
+      // Desktop/Büyük ekran: Büyük fontlar
+      const referenceHeight = 800.0;
+      final scale = screenHeight / referenceHeight;
+      // Büyük ekranlarda minimum 0.8, maksimum 1.2
+      return scale.clamp(0.8, 1.2);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: _buildDrawer(),
+      floatingActionButton: _isTestMode ? _buildFloatingActionButton() : null,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -675,10 +736,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         children: [
           Text(
             'Sultan Mescidi',
-            style: GoogleFonts.greatVibes(
+            style: TextStyle(
               fontSize: 42 * scaleFactor,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w300,
               color: AppColors.white,
+              fontFamily: 'Serif', // Elegant fallback font
+              fontStyle: FontStyle.italic,
             ),
           ),
           const SizedBox(height: 4),
@@ -786,10 +849,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Widget _buildPrayerTimeCard(String name, String time, bool isNext) {
     final scaleFactor = _getFontScaleFactor(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      margin: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 16,
+        vertical: 2,
+      ),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 20,
+        vertical: isMobile ? 8 : 10,
+      ),
       decoration: BoxDecoration(
         color: isNext ? AppColors.nextPrayerGreen : AppColors.cardBackground,
         borderRadius: BorderRadius.circular(8),
@@ -798,8 +869,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         children: [
           // Saat ikonu
           Container(
-            width: 44 * scaleFactor,
-            height: 44 * scaleFactor,
+            width: isMobile ? 36 : 44 * scaleFactor,
+            height: isMobile ? 36 : 44 * scaleFactor,
             decoration: const BoxDecoration(
               color: AppColors.clockIconBg,
               shape: BoxShape.circle,
@@ -810,13 +881,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               // colorFilter removed to show original SVG colors
             ),
           ),
-          const SizedBox(width: 18),
+          SizedBox(width: isMobile ? 10 : 18),
           // Vakit adı
           Expanded(
             child: Text(
               name,
               style: TextStyle(
-                fontSize: 30 * scaleFactor,
+                fontSize: isMobile ? 22 : 30 * scaleFactor,
                 fontWeight: FontWeight.w900,
                 color: AppColors.white,
               ),
@@ -826,7 +897,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           Text(
             time,
             style: TextStyle(
-              fontSize: 34 * scaleFactor,
+              fontSize: isMobile ? 26 : 34 * scaleFactor,
               fontWeight: FontWeight.bold,
               color: AppColors.white,
               letterSpacing: 1,
@@ -834,6 +905,189 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDrawer() {
+    return Drawer(
+      backgroundColor: AppColors.cardBackground,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.primaryDarkBlue,
+                    AppColors.accentBlue,
+                  ],
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Ayarlar',
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.white,
+                      fontFamily: 'Roboto', // Fallback font
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Sultan Mescidi',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.white.withOpacity(0.8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Test Modu
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.primaryDarkBlue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _isTestMode
+                        ? AppColors.accentBlue
+                        : Colors.transparent,
+                    width: 2,
+                  ),
+                ),
+                child: SwitchListTile(
+                  title: Text(
+                    'Test Modu',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.white,
+                    ),
+                  ),
+                  subtitle: Text(
+                    _isTestMode
+                        ? 'Tarih değiştirme aktif'
+                        : 'Gerçek tarih kullanılıyor',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.white.withOpacity(0.7),
+                    ),
+                  ),
+                  value: _isTestMode,
+                  activeColor: AppColors.accentBlue,
+                  onChanged: (value) {
+                    setState(() {
+                      _isTestMode = value;
+                      if (!value) {
+                        // Test modu kapatıldığında offset'i sıfırla
+                        _timeOffset = Duration.zero;
+                      }
+                    });
+                    // Test modu kapatıldığında güncel vakitleri yükle
+                    if (!value && selectedPlace != null) {
+                      _fetchPrayerTimes(selectedPlace!);
+                    }
+                  },
+                ),
+              ),
+            ),
+            if (_isTestMode) ...[
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentBlue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: AppColors.accentBlue,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Sağ alttaki takvim butonuyla tarih değiştirebilirsiniz',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.white.withOpacity(0.9),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            const Spacer(),
+            // Footer
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Versiyon 1.0.0',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.white.withOpacity(0.5),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFloatingActionButton() {
+    return FloatingActionButton(
+      onPressed: () async {
+        final DateTime? picked = await showDatePicker(
+          context: context,
+          initialDate: _now,
+          firstDate: DateTime(2020),
+          lastDate: DateTime(2030),
+          builder: (context, child) {
+            return Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: const ColorScheme.light(
+                  primary: AppColors.primaryDarkBlue,
+                  onPrimary: AppColors.white,
+                  surface: AppColors.white,
+                ),
+              ),
+              child: child!,
+            );
+          },
+        );
+        if (picked != null) {
+          final now = DateTime.now();
+          final todayStart = DateTime(now.year, now.month, now.day);
+          final diff = picked.difference(todayStart);
+
+          setState(() {
+            _timeOffset = diff;
+          });
+
+          if (selectedPlace != null) {
+            await _fetchPrayerTimes(selectedPlace!);
+          }
+        }
+      },
+      child: const Icon(Icons.calendar_today),
     );
   }
 }
