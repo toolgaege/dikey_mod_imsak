@@ -63,25 +63,14 @@ class _VerticalClockPageState extends State<VerticalClockPage> {
   // Ekran boyutuna göre font scale faktörü hesapla
   double _getFontScaleFactor(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final screenWidth = size.width;
     final screenHeight = size.height;
 
-    // Mobil cihaz kontrolü
-    if (screenWidth < 600) {
-      const referenceHeight = 800.0;
-      final scale = screenHeight / referenceHeight;
-      return scale.clamp(0.5, 0.9);
-    } else if (screenWidth < 1024) {
-      // Tablet
-      const referenceHeight = 800.0;
-      final scale = screenHeight / referenceHeight;
-      return scale.clamp(0.8, 1.2);
-    } else {
-      // Desktop / TV (Large screens)
-      const referenceHeight = 800.0;
-      final scale = screenHeight / referenceHeight;
-      return scale.clamp(1.2, 2.0); // Increased max scale for TVs
-    }
+    // Tüm cihazlar için ortak ölçekleme
+    const referenceHeight = 800.0;
+    final scale = screenHeight / referenceHeight;
+
+    // Minimum 0.8, maksimum 2.0 (TV'ler için geniş aralık)
+    return scale.clamp(0.8, 2.0);
   }
 
   @override

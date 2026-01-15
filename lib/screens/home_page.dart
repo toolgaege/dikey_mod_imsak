@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 // import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+
 import 'dart:async';
+import 'dart:math';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import '../services/vakit_api_service.dart';
@@ -48,15 +49,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   bool isLoading = false;
   bool _isLocaleInitialized = false;
   String? errorMessage;
-
-  final Map<String, PrayerTimeInfo> prayerInfo = {
-    'Fecr': PrayerTimeInfo('assets/images/fecr.svg', AppColors.fecr),
-    'Güneş': PrayerTimeInfo('assets/images/gunes.svg', AppColors.gunes),
-    'Öğle': PrayerTimeInfo('assets/images/ogle.svg', AppColors.ogle),
-    'İkindi': PrayerTimeInfo('assets/images/ikindi.svg', AppColors.ikindi),
-    'Akşam': PrayerTimeInfo('assets/images/aksam.svg', AppColors.aksam),
-    'Yatsı': PrayerTimeInfo('assets/images/yatsi.svg', AppColors.yatsi),
-  };
 
   @override
   void initState() {
@@ -486,29 +478,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   // Ekran boyutuna göre font scale faktörü hesapla
   double _getFontScaleFactor(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final screenWidth = size.width;
     final screenHeight = size.height;
 
-    // Mobil cihaz kontrolü (genişlik < 600px)
-    if (screenWidth < 600) {
-      // Mobil: Daha küçük fontlar
-      const referenceHeight = 800.0;
-      final scale = screenHeight / referenceHeight;
-      // Mobilde minimum 0.5, maksimum 0.85
-      return scale.clamp(0.5, 0.85);
-    } else if (screenWidth < 1024) {
-      // Tablet: Orta boyut fontlar
-      const referenceHeight = 800.0;
-      final scale = screenHeight / referenceHeight;
-      // Tablette minimum 0.7, maksimum 1.0
-      return scale.clamp(0.7, 1.0);
-    } else {
-      // Desktop/Büyük ekran: Büyük fontlar
-      const referenceHeight = 800.0;
-      final scale = screenHeight / referenceHeight;
-      // Büyük ekranlarda minimum 0.8, maksimum 1.2
-      return scale.clamp(0.8, 1.2);
-    }
+    // Tüm cihazlar için ortak ölçekleme
+    const referenceHeight = 800.0;
+    final scale = screenHeight / referenceHeight;
+
+    // Minimum 0.7, maksimum 1.2
+    return scale.clamp(0.7, 1.2);
   }
 
   @override
@@ -801,17 +778,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Widget _buildPrayerTimeCard(String name, String time, bool isNext) {
     final scaleFactor = _getFontScaleFactor(context);
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = screenWidth < 600;
 
     return Container(
-      margin: EdgeInsets.symmetric(
-        horizontal: isMobile ? 12 : 16,
+      margin: const EdgeInsets.symmetric(
+        horizontal: 16,
         vertical: 2,
       ),
-      padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 12 : 20,
-        vertical: isMobile ? 8 : 10,
+      padding: const EdgeInsets.symmetric(
+        horizontal: 20,
+        vertical: 10,
       ),
       decoration: BoxDecoration(
         color: isNext ? AppColors.nextPrayerGreen : AppColors.cardBackground,
@@ -821,25 +796,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         children: [
           // Saat ikonu
           Container(
-            width: isMobile ? 36 : 44 * scaleFactor,
-            height: isMobile ? 36 : 44 * scaleFactor,
+            width: 44 * scaleFactor,
+            height: 44 * scaleFactor,
             decoration: const BoxDecoration(
               color: AppColors.clockIconBg,
               shape: BoxShape.circle,
             ),
-            child: SvgPicture.asset(
-              prayerInfo[name]?.svgPath ?? 'assets/images/logo.svg',
-              fit: BoxFit.contain,
-              // colorFilter removed to show original SVG colors
+            child: CustomPaint(
+              painter: _SmallClockPainter(
+                timeString: time,
+                color: AppColors.clockIconHand,
+              ),
             ),
           ),
-          SizedBox(width: isMobile ? 10 : 18),
+          SizedBox(width: 18 * scaleFactor),
           // Vakit adı
           Expanded(
             child: Text(
               name,
               style: TextStyle(
-                fontSize: isMobile ? 22 : 30 * scaleFactor,
+                fontSize: 30 * scaleFactor,
                 fontWeight: FontWeight.w900,
                 color: AppColors.white,
               ),
@@ -849,7 +825,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           Text(
             time,
             style: TextStyle(
-              fontSize: isMobile ? 26 : 34 * scaleFactor,
+              fontSize: 34 * scaleFactor,
               fontWeight: FontWeight.bold,
               color: AppColors.white,
               letterSpacing: 1,
@@ -900,9 +876,85 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 }
 
-class PrayerTimeInfo {
-  final String svgPath;
+class _SmallClockPainter extends CustomPainter {
+  final String timeString;
   final Color color;
 
-  PrayerTimeInfo(this.svgPath, this.color);
+  _SmallClockPainter({required this.timeString, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (timeString.isEmpty) return;
+
+    final parts = timeString.split(':');
+    if (parts.length < 2) return;
+
+    int hour = 0;
+    int minute = 0;
+
+    try {
+      hour = int.parse(parts[0]);
+      minute = int.parse(parts[1]);
+    } catch (e) {
+      return;
+    }
+
+    final centerX = size.width / 2;
+    final centerY = size.height / 2;
+    final center = Offset(centerX, centerY);
+    final radius = size.width / 2;
+
+    final paint = Paint()
+      ..color = color
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    // Kadran noktaları (Opsiyonel ama şık durur)
+    final tickPaint = Paint()
+      ..color = color.withOpacity(0.5)
+      ..style = PaintingStyle.fill;
+
+    for (int i = 0; i < 12; i++) {
+      final angle = (i * 30 - 90) * pi / 180;
+      final tickPos = Offset(
+        centerX + (radius * 0.85) * cos(angle),
+        centerY + (radius * 0.85) * sin(angle),
+      );
+      // 12, 3, 6, 9 için biraz daha büyük nokta
+      canvas.drawCircle(tickPos, i % 3 == 0 ? 1.5 : 0.8, tickPaint);
+    }
+
+    // Akrep (Saat İbresi)
+    // Saati 12'lik dilime çevir + dakika payını ekle
+    final hourVal = (hour % 12) + (minute / 60.0);
+    final hourAngle = (hourVal * 30 - 90) * pi / 180;
+    final hourHandLen = radius * 0.55;
+
+    paint.strokeWidth = size.width * 0.08;
+    canvas.drawLine(
+      center,
+      Offset(centerX + hourHandLen * cos(hourAngle),
+          centerY + hourHandLen * sin(hourAngle)),
+      paint,
+    );
+
+    // Yelkovan (Dakika İbresi)
+    final minuteAngle = (minute * 6 - 90) * pi / 180;
+    final minHandLen = radius * 0.80;
+
+    paint.strokeWidth = size.width * 0.06;
+    canvas.drawLine(
+      center,
+      Offset(centerX + minHandLen * cos(minuteAngle),
+          centerY + minHandLen * sin(minuteAngle)),
+      paint,
+    );
+
+    // Merkez noktası
+    paint.style = PaintingStyle.fill;
+    canvas.drawCircle(center, size.width * 0.08, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
