@@ -1,3 +1,5 @@
+import '../models/prayer_times_model.dart';
+
 class DateUtils {
   static const List<String> hijriMonths = [
     'Muharrem',
@@ -29,9 +31,18 @@ class DateUtils {
     'Şubat'
   ];
 
-  /// Calculates Hijri date string from Gregorian date
+  /// API'den gelen HijriDate nesnesini Türkçe formatlı stringe çevirir
+  static String formatHijriFromApi(HijriDate hijri) {
+    final monthName =
+        (hijri.month >= 1 && hijri.month <= 12)
+            ? hijriMonths[hijri.month - 1]
+            : '?';
+    return '${hijri.day} (${hijri.month}) $monthName ${hijri.year}';
+  }
+
+  /// Lokal hesaplama ile Hicri tarih (API yokken fallback olarak kullanılır)
   static String calculateHijriDate(DateTime gregorian) {
-    final julianDay = _toJulianDay(gregorian);
+    final julianDay = _toJulianDay(gregorian) - 1;
     final hijriDate = _julianToHijri(julianDay);
 
     return '${hijriDate['day']} (${hijriDate['month']}) ${hijriMonths[hijriDate['month']! - 1]} ${hijriDate['year']}';
@@ -44,16 +55,7 @@ class DateUtils {
     final rumiDate = gregorian.subtract(const Duration(days: 13));
 
     // Rumi year calculation (starts in March)
-    // If month is Jan or Feb, it's the previous year in Rumi terms compared to Gregorian
-    // But typically Rumi year = Gregorian Year - 584
     int rumiYear = rumiDate.year - 584;
-
-    // Adjust month name
-    // Our rumiMonths list starts with Mart (March), so we need to map 1-12 to correct index
-    // 3 (March) -> 0
-    // ...
-    // 1 (January) -> 10
-    // 2 (February) -> 11
 
     int monthIndex;
     if (rumiDate.month >= 3) {

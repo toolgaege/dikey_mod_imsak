@@ -3,8 +3,12 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../utils/colors.dart';
 import '../utils/date_utils.dart' as app_date_utils;
+import '../models/place_model.dart';
+import '../services/vakit_api_service.dart';
+import '../services/storage_service.dart';
 import '../widgets/analog_clock.dart';
 
 class VerticalClockPage extends StatefulWidget {
@@ -16,21 +20,112 @@ class VerticalClockPage extends StatefulWidget {
 
 class _VerticalClockPageState extends State<VerticalClockPage> {
   late Timer _timer;
+  final VakitApiService _apiService = VakitApiService();
+  final StorageService _storageService = StorageService();
   String _timeString = '';
   String _dateString = '';
   String _hijriDateString = '';
   String _rumiDateString = '';
   String _dayName = '';
+  String? _cachedApiHijriDate;
 
   @override
   void initState() {
     super.initState();
     initializeDateFormatting('tr', null);
+    _fetchHijriDate();
     _updateTime();
-    _timer = Timer.periodic(
-      const Duration(seconds: 1),
-      (Timer t) => _updateTime(),
-    );
+    _timer =
+        Timer.periodic(const Duration(seconds: 1), (Timer t) => _updateTime());
+  }
+
+  /// Varsayılan konum (Denizli)
+  static final _defaultPlace = PlaceModel(
+    id: '20392',
+    country: 'Turkey',
+    region: 'Denizli',
+    city: 'Denizli',
+    latitude: 37.77,
+    longitude: 29.09,
+  );
+
+  /// Hicri tarihi yükle: DB → API → lokal hesaplama
+  Future<void> _fetchHijriDate() async {
+    // 1. Cache/DB'den dene (yıllık veri varsa burada bulur)
+    final cached = await _storageService.loadCachedHijriDate();
+    if (cached != null && mounted) {
+      setState(() {
+        _cachedApiHijriDate = cached;
+        _hijriDateString = cached;
+      });
+      // Arka planda yıllık veri kontrolü yap
+      _checkAndSyncYearlyData();
+      return;
+    }
+
+    // 2. DB'de yıllık veri yoksa API'den çek
+    await _checkAndSyncYearlyData();
+
+    // 3. Yıllık sync sonrası tekrar DB'den dene
+    final afterSync = await _storageService.loadCachedHijriDate();
+    if (afterSync != null && mounted) {
+      setState(() {
+        _cachedApiHijriDate = afterSync;
+        _hijriDateString = afterSync;
+      });
+      return;
+    }
+
+    // 4. Yıllık da yoksa tek günlük API isteği
+    try {
+      final now = DateTime.now();
+      final hijri = await _apiService.getHijriDate(now);
+      if (hijri != null && mounted) {
+        final hijriStr = app_date_utils.DateUtils.formatHijriFromApi(hijri);
+        final todayStr =
+            '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+        await _storageService.cacheHijriDate(hijriStr, todayStr);
+        setState(() {
+          _cachedApiHijriDate = hijriStr;
+          _hijriDateString = hijriStr;
+        });
+      }
+    } catch (e) {
+      print('⚠️ Hicri tarih API hatası, lokal hesaplama kullanılıyor: $e');
+    }
+  }
+
+  /// Yıllık verileri kontrol et ve gerekirse API'den çek (Hicri tarihlerle birlikte)
+  Future<void> _checkAndSyncYearlyData() async {
+    if (kIsWeb) return;
+
+    try {
+      final currentYear = DateTime.now().year;
+      final hasData = await _storageService.hasYearDataInDB(
+        currentYear,
+        _defaultPlace.id,
+      );
+
+      if (!hasData) {
+        print('📡 Yıllık veriler çekiliyor (Hicri tarihlerle birlikte)...');
+
+        final response = await _apiService.getYearlyTimes(
+          lat: _defaultPlace.latitude,
+          lng: _defaultPlace.longitude,
+          year: currentYear,
+        );
+
+        await _storageService.saveYearlyPrayerTimes(
+          response,
+          _defaultPlace,
+          currentYear,
+        );
+
+        print('✅ Yıllık veriler kaydedildi (${response.times.length} gün + Hicri tarihler)');
+      }
+    } catch (e) {
+      print('⚠️ Yıllık veri senkronizasyon hatası: $e');
+    }
   }
 
   void _updateTime() {
@@ -39,7 +134,11 @@ class _VerticalClockPageState extends State<VerticalClockPage> {
       setState(() {
         _timeString = DateFormat('HH:mm:ss').format(now);
         _dayName = DateFormat('EEEE', 'tr').format(now).toUpperCase();
-        _hijriDateString = app_date_utils.DateUtils.calculateHijriDate(now);
+
+        // H: API'den gelen Hicri tarih, yoksa lokal hesaplama
+        _hijriDateString = _cachedApiHijriDate ??
+            app_date_utils.DateUtils.calculateHijriDate(now);
+
         _dateString = DateFormat('d (M) MMMM yyyy', 'tr').format(now);
         _rumiDateString = app_date_utils.DateUtils.calculateRumiDate(now);
       });
@@ -53,8 +152,6 @@ class _VerticalClockPageState extends State<VerticalClockPage> {
   }
 
   double _getFontScaleFactor(BuildContext context) {
-    // Geniş moddaki (TV/Büyük ekran) büyük görünümü tüm cihazlarda (mobil dahil) koruyoruz
-    // Ekran genişliğine göre dinamik ölçekleme yaparak mobilde de "büyük" görünmesini sağlıyoruz
     final screenWidth = MediaQuery.of(context).size.width;
     return (screenWidth / 400).clamp(1.0, 3.0);
   }
@@ -66,7 +163,6 @@ class _VerticalClockPageState extends State<VerticalClockPage> {
     final screenWidth = size.width;
     final screenHeight = size.height;
 
-    // Analog saat boyutu: Ekran genişliğinin %90'ı veya mevcut yüksekliğin yarısı (hangisi küçükse)
     final safeClockSize = min(screenWidth * 0.9, screenHeight * 0.45);
 
     return Scaffold(

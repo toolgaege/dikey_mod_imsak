@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import '../utils/colors.dart';
 import '../utils/date_utils.dart' as app_date_utils;
+import '../services/storage_service.dart';
 import '../widgets/analog_clock.dart';
 import '../widgets/drawer_menu.dart';
 
@@ -19,19 +20,32 @@ class VerticalClockPage extends StatefulWidget {
 class _VerticalClockPageState extends State<VerticalClockPage> {
   late Timer _timer;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final StorageService _storageService = StorageService();
   String _timeString = '';
   String _dateString = '';
   String _hijriDateString = '';
   String _rumiDateString = '';
   String _dayName = '';
+  String? _cachedApiHijriDate;
 
   @override
   void initState() {
     super.initState();
     initializeDateFormatting('tr', null);
+    _loadCachedHijriDate();
     _updateTime();
     _timer =
         Timer.periodic(const Duration(seconds: 1), (Timer t) => _updateTime());
+  }
+
+  Future<void> _loadCachedHijriDate() async {
+    final cached = await _storageService.loadCachedHijriDate();
+    if (cached != null && mounted) {
+      setState(() {
+        _cachedApiHijriDate = cached;
+        _hijriDateString = cached;
+      });
+    }
   }
 
   void _updateTime() {
@@ -42,8 +56,9 @@ class _VerticalClockPageState extends State<VerticalClockPage> {
         // CUMA
         _dayName = DateFormat('EEEE', 'tr').format(now).toUpperCase();
 
-        // H: 11 (11) Zilkade 1446
-        _hijriDateString = app_date_utils.DateUtils.calculateHijriDate(now);
+        // H: API'den gelen Hicri tarih, yoksa lokal hesaplama
+        _hijriDateString = _cachedApiHijriDate ??
+            app_date_utils.DateUtils.calculateHijriDate(now);
 
         // M: 9 (5) Mayıs 2025
         _dateString = DateFormat('d (M) MMMM yyyy', 'tr').format(now);
