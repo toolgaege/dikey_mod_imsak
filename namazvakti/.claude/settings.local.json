@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter run:*)",
+      "Bash(flutter devices:*)",
+      "Bash(flutter pub get:*)",
+      "Bash(cat:*)",
+      "Bash(curl -s \"https://aladhan.com/prayer-times-api\")",
+      "Bash(curl -s \"https://api.aladhan.com/v1/timings/05-04-2026?latitude=41.0082&longitude=28.9784&method=13\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s \"https://api.aladhan.com/v1/methods\")",
+      "Bash(curl -s \"https://api.aladhan.com/v1/gpiToGd/17-10-1447\")",
+      "Bash(curl -s \"https://api.aladhan.com/v1/hpiToGd/17-10-1447\")",
+      "Bash(curl -s \"https://api.aladhan.com/v1/gToH/05-04-2026\")",
+      "Bash(curl -s \"https://api.aladhan.com/v1/timingsByCity?city=Istanbul&country=Turkey&method=13\")",
+      "Bash(curl -s \"https://api.aladhan.com/v1/timingsByCity/05-04-2026?city=Istanbul&country=Turkey&method=13\")",
+      "Bash(curl -s \"https://api.aladhan.com/v1/calendarByCity/2026/4?city=Istanbul&country=Turkey&method=13\")",
+      "WebFetch(domain:api.aladhan.com)",
+      "Bash(flutter analyze:*)"
+    ]
+  }
+}
