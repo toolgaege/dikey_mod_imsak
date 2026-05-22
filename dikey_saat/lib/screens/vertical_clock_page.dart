@@ -30,6 +30,7 @@ class _VerticalClockPageState extends State<VerticalClockPage> {
   String _dayName = '';
   String? _cachedApiHijriDate;
   String _lastHijriCheckDate = '';
+  bool _hijriLoaded = false;
 
   @override
   void initState() {
@@ -44,6 +45,7 @@ class _VerticalClockPageState extends State<VerticalClockPage> {
   Future<void> _initHijri() async {
     await _storageService.clearHijriCacheIfStaleVersion();
     await _refreshHijriDate();
+    if (mounted) setState(() => _hijriLoaded = true);
   }
 
   String _formatDateKey(DateTime date) {
@@ -96,9 +98,12 @@ class _VerticalClockPageState extends State<VerticalClockPage> {
         // CUMA
         _dayName = DateFormat('EEEE', 'tr').format(now).toUpperCase();
 
-        // H: API'den gelen Hicri tarih, yoksa lokal hesaplama
+        // H: API'den gelen Hicri tarih. Yüklenmeden önce boş göster,
+        // yükleme tamamlanınca (başarısız bile olsa) lokal fallback kullan.
         _hijriDateString = _cachedApiHijriDate ??
-            app_date_utils.DateUtils.calculateHijriDate(now);
+            (_hijriLoaded
+                ? app_date_utils.DateUtils.calculateHijriDate(now)
+                : '');
 
         // M: 9 (5) Mayıs 2025
         _dateString = DateFormat('d (M) MMMM yyyy', 'tr').format(now);

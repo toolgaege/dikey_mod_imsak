@@ -47,6 +47,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   PlaceModel? selectedPlace;
   Map<String, String> prayerTimes = {};
   bool isLoading = false;
+  bool _hijriLoaded = false;
   bool _isLocaleInitialized = false;
   String? errorMessage;
 
@@ -161,6 +162,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     } finally {
       setState(() {
         isLoading = false;
+        _hijriLoaded = true;
       });
     }
   }
@@ -408,7 +410,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         currentDate = DateFormat('dd MMMM yyyy, EEEE', 'tr').format(now);
       }
       // Hicri tarih: API'den gelen tarih varsa onu koru, yoksa lokal hesapla
-      if (hijriDate.isEmpty) {
+      if (hijriDate.isEmpty && _hijriLoaded) {
         hijriDate = app_date_utils.DateUtils.calculateHijriDate(now);
       }
     });
