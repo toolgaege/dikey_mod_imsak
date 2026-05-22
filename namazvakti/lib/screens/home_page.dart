@@ -224,6 +224,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       print('❌ Yıllık veri senkronizasyon hatası: $e');
       print('⚠️ Offline modda çalışılamayabilir');
     }
+
+    // Yıllık senkronizasyon kısmen başarısız olduysa (örn. 429 rate limit),
+    // en azından bugünün vakitlerini tek günlük endpoint'ten al
+    if (prayerTimes.isEmpty && selectedPlace != null) {
+      print('⚠️ Yıllık eksik, tek günlük fallback çekiliyor...');
+      await _fetchPrayerTimes(selectedPlace!);
+    }
   }
 
   Future<void> _searchAndSelectPlace(String query) async {
@@ -504,12 +511,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   // Ekran boyutuna göre font scale faktörü hesapla
   double _getFontScaleFactor(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final screenHeight = size.height;
+    final mq = MediaQuery.of(context);
+    // Inset'leri düş: status bar + navigation bar sonrası gerçek alan
+    final usableHeight =
+        mq.size.height - mq.padding.top - mq.padding.bottom;
 
-    // Tüm cihazlar için ortak ölçekleme
     const referenceHeight = 800.0;
-    final scale = screenHeight / referenceHeight;
+    final scale = usableHeight / referenceHeight;
 
     // Minimum 0.7, maksimum 1.2
     return scale.clamp(0.7, 1.2);
@@ -947,8 +955,9 @@ class _SmallClockPainter extends CustomPainter {
         centerX + (radius * 0.85) * cos(angle),
         centerY + (radius * 0.85) * sin(angle),
       );
-      // 12, 3, 6, 9 için biraz daha büyük nokta
-      canvas.drawCircle(tickPos, i % 3 == 0 ? 1.5 : 0.8, tickPaint);
+      // 12, 3, 6, 9 için biraz daha büyük nokta — radius'a göre orantılı
+      canvas.drawCircle(
+          tickPos, i % 3 == 0 ? radius * 0.07 : radius * 0.04, tickPaint);
     }
 
     // Akrep (Saat İbresi)

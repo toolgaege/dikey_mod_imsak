@@ -224,6 +224,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       print('❌ Yıllık veri senkronizasyon hatası: $e');
       print('⚠️ Offline modda çalışılamayabilir');
     }
+
+    // Yıllık senkronizasyon kısmen başarısız olduysa (örn. 429 rate limit),
+    // en azından bugünün vakitlerini tek günlük endpoint'ten al
+    if (prayerTimes.isEmpty && selectedPlace != null) {
+      print('⚠️ Yıllık eksik, tek günlük fallback çekiliyor...');
+      await _fetchPrayerTimes(selectedPlace!);
+    }
   }
 
   Future<void> _searchAndSelectPlace(String query) async {

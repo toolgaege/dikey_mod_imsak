@@ -10,6 +10,46 @@ class VakitApiService {
   /// Diyanet İşleri Başkanlığı hesaplama metodu (method=13)
   static const int methodDiyanet = 13;
 
+  /// 429 ve geçici hatalar için üstel geri çekilmeli GET.
+  /// Retry-After header'ı varsa onu, yoksa exponential backoff kullanır.
+  Future<http.Response?> _getWithRetry(
+    Uri url, {
+    int maxAttempts = 4,
+  }) async {
+    var delayMs = 1000;
+    http.Response? lastResponse;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final response = await http.get(url);
+        lastResponse = response;
+        if (response.statusCode == 200) {
+          return response;
+        }
+        if (response.statusCode == 429 || response.statusCode >= 500) {
+          if (attempt == maxAttempts) return response;
+          final retryAfter = response.headers['retry-after'];
+          var waitMs = delayMs;
+          if (retryAfter != null) {
+            final seconds = int.tryParse(retryAfter);
+            if (seconds != null) waitMs = seconds * 1000;
+          }
+          print(
+              '⏳ ${response.statusCode} alındı, ${waitMs}ms bekleniyor (deneme $attempt/$maxAttempts)');
+          await Future.delayed(Duration(milliseconds: waitMs));
+          delayMs *= 2;
+          continue;
+        }
+        return response;
+      } catch (e) {
+        if (attempt == maxAttempts) rethrow;
+        print('⚠️ İstek hatası ($attempt/$maxAttempts): $e');
+        await Future.delayed(Duration(milliseconds: delayMs));
+        delayMs *= 2;
+      }
+    }
+    return lastResponse;
+  }
+
   /// Koordinatlardan namaz vakitleri (tek gün)
   Future<PrayerTimesResponse> getTimesForGPS({
     required double lat,
@@ -91,36 +131,36 @@ class VakitApiService {
       print('📅 ═══════════════════════════════════════════');
       print('📅 YILLIK VERİLER ÇEKİLİYOR (Aladhan API)...');
       print('📅 Yıl: $targetYear');
-      print('📅 12 aylık paralel istek gönderiliyor...');
+      print('📅 12 ay sıralı çekiliyor (rate limit koruması)...');
       print('📅 ═══════════════════════════════════════════');
 
-      // 12 ay için paralel istek gönder
-      final futures = List.generate(12, (i) {
+      final allTimes = <DailyPrayerTimes>[];
+
+      for (int i = 0; i < 12; i++) {
         final month = i + 1;
         final url = Uri.parse(
           '$baseUrl/calendar/$targetYear/$month?latitude=$lat&longitude=$lng&method=$methodDiyanet',
         );
-        return http.get(url);
-      });
 
-      final responses = await Future.wait(futures);
+        final response = await _getWithRetry(url);
 
-      final allTimes = <DailyPrayerTimes>[];
-
-      for (int i = 0; i < responses.length; i++) {
-        final response = responses[i];
-        if (response.statusCode == 200) {
+        if (response != null && response.statusCode == 200) {
           final data = json.decode(response.body);
           if (data['code'] == 200) {
             final monthTimes =
                 PrayerTimesResponse.fromAladhanCalendar(data);
             allTimes.addAll(monthTimes.times);
-            print('✅ ${i + 1}. ay: ${monthTimes.times.length} gün');
+            print('✅ $month. ay: ${monthTimes.times.length} gün');
           } else {
-            print('❌ ${i + 1}. ay API hatası: ${data['status']}');
+            print('❌ $month. ay API hatası: ${data['status']}');
           }
         } else {
-          print('❌ ${i + 1}. ay HTTP hatası: ${response.statusCode}');
+          print(
+              '❌ $month. ay HTTP hatası: ${response?.statusCode ?? 'no response'}');
+        }
+
+        if (i < 11) {
+          await Future.delayed(const Duration(milliseconds: 250));
         }
       }
 
