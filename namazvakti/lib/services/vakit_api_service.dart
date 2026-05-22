@@ -136,12 +136,21 @@ class VakitApiService {
     }
   }
 
-  /// Aladhan API'den Hicri tarih çek (Gregorian → Hijri dönüşümü)
+  /// Aladhan API'den Hicri tarih çek.
+  /// /gToH genel astronomik dönüşümü Türkiye'de 1 gün geride kaldığı için
+  /// /timings endpoint'i method=13 (Türkiye/Diyanet hesabı) ile çağrılır;
+  /// response.data.date.hijri Türkiye takvimi ile hizalı döner.
+  /// Konum gerekmediği için sabit Türkiye koordinatları (Ankara) kullanılır;
+  /// Hicri tarih tüm Türkiye için aynı olduğundan koordinat sonucu etkilemez.
   Future<HijriDate?> getHijriDate(DateTime gregorian) async {
+    const defaultLat = 39.9334; // Ankara
+    const defaultLng = 32.8597;
     try {
       final dateStr =
           '${gregorian.day.toString().padLeft(2, '0')}-${gregorian.month.toString().padLeft(2, '0')}-${gregorian.year}';
-      final url = Uri.parse('$baseUrl/gToH/$dateStr');
+      final url = Uri.parse(
+        '$baseUrl/timings/$dateStr?latitude=$defaultLat&longitude=$defaultLng&method=$methodDiyanet',
+      );
 
       print('📿 Hicri tarih API isteği: $url');
 
@@ -150,10 +159,11 @@ class VakitApiService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['code'] == 200) {
-          final hijriData = data['data']?['hijri'];
+          final hijriData = data['data']?['date']?['hijri'];
           if (hijriData != null) {
             final hijri = HijriDate.fromAladhanJson(hijriData);
-            print('✅ Hicri tarih: ${hijri.day} ${hijri.monthNameEn} ${hijri.year}');
+            print(
+                '✅ Hicri tarih: ${hijri.day} ${hijri.monthNameEn} ${hijri.year}');
             return hijri;
           }
         }

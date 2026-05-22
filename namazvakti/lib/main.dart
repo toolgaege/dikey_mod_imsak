@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -6,12 +7,22 @@ import 'utils/colors.dart';
 import 'screens/vertical_clock_page.dart';
 import 'screens/home_page.dart';
 import 'services/storage_service.dart';
+import 'services/vakit_api_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('tr', null);
   await initializeDateFormatting('tr_TR', null);
   Intl.defaultLocale = 'tr';
+
+  // Eski sürümden kalan yanlış Hicri cache'i (gToH endpoint'i, 1 gün geride)
+  // tek seferlik temizle.
+  await StorageService().clearHijriCacheIfStaleVersion();
+
+  // Arka planda yıllık Hicri verisini DB'ye yaz (offline destek).
+  // Fire-and-forget: uygulama açılışını bloklamaz, offline'da sessizce fail eder.
+  unawaited(
+      StorageService().ensureHijriYearSyncedSilently(VakitApiService()));
 
   // Tüm yönlendirmelere izin ver (iPad tam ekran için)
   SystemChrome.setPreferredOrientations([

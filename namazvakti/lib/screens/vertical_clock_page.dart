@@ -35,10 +35,15 @@ class _VerticalClockPageState extends State<VerticalClockPage> {
   void initState() {
     super.initState();
     initializeDateFormatting('tr', null);
-    _refreshHijriDate();
+    _initHijri();
     _updateTime();
     _timer =
         Timer.periodic(const Duration(seconds: 1), (Timer t) => _updateTime());
+  }
+
+  Future<void> _initHijri() async {
+    await _storageService.clearHijriCacheIfStaleVersion();
+    await _refreshHijriDate();
   }
 
   String _formatDateKey(DateTime date) {

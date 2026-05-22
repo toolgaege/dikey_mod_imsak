@@ -5,6 +5,7 @@ import '../models/place_model.dart';
 import '../models/prayer_time_db_model.dart';
 import '../models/prayer_times_model.dart';
 import 'database_service.dart';
+import 'vakit_api_service.dart';
 
 class StorageService {
   static const String _keySelectedPlace = 'selected_place';
@@ -14,6 +15,8 @@ class StorageService {
   static const String _keyDefaultPage = 'default_page';
   static const String _keyCachedHijriDate = 'cached_hijri_date';
   static const String _keyCachedHijriDateFor = 'cached_hijri_date_for';
+  static const String _keyHijriSourceVersion = 'hijri_source_version';
+  static const String _hijriSourceVersionCurrent = 'diyanet_v1';
 
   final DatabaseService _dbService = DatabaseService();
 
@@ -223,6 +226,57 @@ class StorageService {
     }
 
     await _dbService.printDatabaseStats();
+  }
+
+  /// Arka planda yıllık Hicri verisini DB'ye yazar (offline destek).
+  /// Konum bağımsız sabit Ankara koord. + method=13 ile 365 gün çekilir.
+  /// Aynı yıl için DB'de Ankara placeId kaydı varsa hiç istek atılmaz.
+  /// Tüm hatalar sessizce yutulur (offline'da fail eder, bir sonraki online
+  /// açılışta tekrar denenir).
+  Future<void> ensureHijriYearSyncedSilently(VakitApiService api) async {
+    if (kIsWeb) return;
+    try {
+      final ankara = PlaceModel(
+        id: 'ankara_default_hijri',
+        country: 'Turkey',
+        region: 'Ankara',
+        city: 'Ankara',
+        latitude: 39.9334,
+        longitude: 32.8597,
+      );
+      final year = DateTime.now().year;
+      if (await hasYearDataInDB(year, ankara.id)) {
+        debugPrint('ℹ️ Yıllık Hicri sync gereksiz ($year zaten DB\'de).');
+        return;
+      }
+      debugPrint('🌐 Arka plan yıllık Hicri sync başlıyor ($year)...');
+      final response = await api.getYearlyTimes(
+        lat: ankara.latitude,
+        lng: ankara.longitude,
+        year: year,
+      );
+      await saveYearlyPrayerTimes(response, ankara, year);
+      debugPrint('✅ Yıllık Hicri sync tamamlandı (offline destek hazır).');
+    } catch (e) {
+      debugPrint('⚠️ Yıllık sync başarısız (offline olabilir): $e');
+    }
+  }
+
+  /// Eski sürümden (gToH endpoint'iyle alınmış, 1 gün geride) kalan
+  /// Hicri cache'i temizle. Aynı sürümle bir kere çalıştırılır.
+  Future<void> clearHijriCacheIfStaleVersion() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getString(_keyHijriSourceVersion) != _hijriSourceVersionCurrent) {
+        await prefs.remove(_keyCachedHijriDate);
+        await prefs.remove(_keyCachedHijriDateFor);
+        await prefs.setString(
+            _keyHijriSourceVersion, _hijriSourceVersionCurrent);
+        debugPrint('🧹 Eski Hicri cache temizlendi (sürüm: $_hijriSourceVersionCurrent)');
+      }
+    } catch (e) {
+      debugPrint('Hicri cache sürüm kontrol hatası: $e');
+    }
   }
 
   /// Hicri tarihi önbelleğe al (API'den gelen doğru tarih)
